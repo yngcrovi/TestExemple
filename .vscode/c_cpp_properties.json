@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+        "name": "Linux",
+        "includePath": [
+            "${workspaceFolder}/gst_plug/include",
+            "${workspaceFolder}/gst_plug/src",
+            "/usr/include/gstreamer-1.0",
+            "/usr/include/glib-2.0",
+            "/usr/lib/x86_64-linux-gnu/glib-2.0/include"
+        ],
+        "defines": [],
+        "compilerPath": "/usr/bin/g++",
+        "cStandard": "c17",
+        "cppStandard": "gnu++17",
+        "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
