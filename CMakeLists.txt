@@ -1,37 +1,55 @@
 cmake_minimum_required(VERSION 3.10)
-project(gst-meta-plugin-example)
+project(gst_meta_plugins LANGUAGES C)
 
-# Настройка версии
-set(PACKAGE "gst-meta-plugin-example")
-set(PACKAGE_VERSION "1.0.0")
+# Настройка путей относительно расположения CMakeLists.txt
+set(PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/gst_plug")
 
-# Поиск зависимостей
+# 1. Поиск зависимостей
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0>=1.14 gstreamer-base-1.0>=1.14)
+pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0>=1.14)
 
+# 2. Настройка путей установки
+set(GST_PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib/gstreamer-1.0"
+    CACHE PATH "Каталог установки плагинов")
+
+# 3. Настройка include-директорий
 include_directories(
     ${GSTREAMER_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/gst_plug/include
+    ${PROJECT_ROOT}/include
 )
 
-# Определения для компилятора
-add_definitions(
-    -DPACKAGE="${PACKAGE}"
-    -DPACKAGE_VERSION="${PACKAGE_VERSION}"
-    -DVERSION="${PACKAGE_VERSION}"
+# 4. Сборка плагина A (с полными путями)
+add_library(gstplugina MODULE
+    ${PROJECT_ROOT}/plugin_a/gstplugina.c
+    ${PROJECT_ROOT}/src/custom_meta.c
+)
+target_link_libraries(gstplugina ${GSTREAMER_LIBRARIES})
+set_target_properties(gstplugina PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "plugina"
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins
 )
 
-# Сборка библиотеки метаданных
-add_library(custom_meta SHARED ./gst_plug/src/custom_meta.cpp)
-target_link_libraries(custom_meta ${GSTREAMER_LIBRARIES})
+# 5. Сборка плагина B (с полными путями)
+add_library(gstpluginb MODULE
+    ${PROJECT_ROOT}/plugin_b/gstpluginb.c
+    ${PROJECT_ROOT}/src/custom_meta.c
+)
+target_link_libraries(gstpluginb ${GSTREAMER_LIBRARIES})
+set_target_properties(gstpluginb PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "pluginb"
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins
+)
 
-# Сборка плагинов
-add_library(gstplugina SHARED ./gst_plug/plugin_a/gstplugina.cpp)
-target_link_libraries(gstplugina custom_meta ${GSTREAMER_LIBRARIES})
+# 6. Установка плагинов
+install(TARGETS gstplugina gstpluginb
+    DESTINATION ${GST_PLUGIN_INSTALL_DIR}
+)
 
-add_library(gstpluginb SHARED ./gst_plug/plugin_b/gstpluginb.cpp)
-target_link_libraries(gstpluginb custom_meta ${GSTREAMER_LIBRARIES})
-
-# Установка в директорию GStreamer
-install(TARGETS custom_meta gstplugina gstpluginb
-        LIBRARY DESTINATION lib/gstreamer-1.0)
+# 7. Тестовая команда
+add_custom_target(run_test
+    COMMAND GST_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins gst-launch-1.0 videotestsrc num-buffers=10 ! plugina ! pluginb ! fakesink
+    DEPENDS gstplugina gstpluginb
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
