@@ -1,20 +1,16 @@
 #include <gst/gst.h>
 #include "custom_meta.h"
 
-/* 1. Предварительное объявление типа */
 #define GST_TYPE_PLUGIN_B (gst_plugin_b_get_type())
 G_DECLARE_FINAL_TYPE(GstPluginB, gst_plugin_b, GST, PLUGIN_B, GstElement)
 
-/* 2. Структура элемента */
 struct _GstPluginB {
     GstElement parent;
     
-    /* Pads */
     GstPad *sinkpad;
     GstPad *srcpad;
 };
 
-/* 3. Регистрация типа */
 G_DEFINE_TYPE(GstPluginB, gst_plugin_b, GST_TYPE_ELEMENT)
 
 /* ========== Реализация методов ========== */
@@ -49,7 +45,7 @@ static void gst_plugin_b_class_init(GstPluginBClass *klass) {
         "Plugin B - Извлекает метаданные",
         "Filter/Metadata",
         "Читает пользовательские метаданные из буферов",
-        "Ваше Имя <your.email@example.com>"
+        "Ваше Имя <test@example.com>"
     );
 }
 

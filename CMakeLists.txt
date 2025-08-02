@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(gst_meta_plugins LANGUAGES C)
-
+add_definitions(-fvisibility=hidden)
 # Настройка путей относительно расположения CMakeLists.txt
 set(PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/gst_plug")
 
