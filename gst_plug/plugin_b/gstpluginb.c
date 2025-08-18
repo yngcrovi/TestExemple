@@ -1,111 +1,97 @@
 #include <gst/gst.h>
-#include "custom_meta.h"
+#include <gst/video/video.h>
+#include <custom_meta.h>
+#include <gst/base/gstbasetransform.h>
+
+G_BEGIN_DECLS
+
+GST_DEBUG_CATEGORY_STATIC(gst_plugin_b_debug);
+#define GST_CAT_DEFAULT gst_plugin_b_debug
 
 #define GST_TYPE_PLUGIN_B (gst_plugin_b_get_type())
-G_DECLARE_FINAL_TYPE(GstPluginB, gst_plugin_b, GST, PLUGIN_B, GstElement)
+G_DECLARE_FINAL_TYPE(GstPluginB, gst_plugin_b, GST, PLUGIN_B, GstBaseTransform)
+
 
 struct _GstPluginB {
-    GstElement parent;
-    
-    GstPad *sinkpad;
-    GstPad *srcpad;
+  GstBaseTransform parent;
+  guint frame_count;
 };
 
-G_DEFINE_TYPE(GstPluginB, gst_plugin_b, GST_TYPE_ELEMENT)
+G_DEFINE_TYPE(GstPluginB, gst_plugin_b, GST_TYPE_BASE_TRANSFORM)
 
-/* ========== Реализация методов ========== */
+static GstStaticPadTemplate sink_template = 
+    GST_STATIC_PAD_TEMPLATE("sink",
+        GST_PAD_SINK,
+        GST_PAD_ALWAYS,
+        GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE("{ I420, NV12, RGBA }")));
 
-static void gst_plugin_b_class_init(GstPluginBClass *klass) {
-    GstElementClass *element_class = GST_ELEMENT_CLASS(klass);
-    
-    /* Настройка pad templates */
-    gst_element_class_add_pad_template(
-        element_class,
-        gst_pad_template_new(
-            "sink",
-            GST_PAD_SINK,
-            GST_PAD_ALWAYS,
-            GST_CAPS_ANY
-        )
-    );
-    
-    gst_element_class_add_pad_template(
-        element_class,
-        gst_pad_template_new(
-            "src",
-            GST_PAD_SRC,
-            GST_PAD_ALWAYS,
-            GST_CAPS_ANY
-        )
-    );
-    
-    /* Метаданные плагина */
-    gst_element_class_set_static_metadata(
-        element_class,
-        "Plugin B - Извлекает метаданные",
-        "Filter/Metadata",
-        "Читает пользовательские метаданные из буферов",
-        "Ваше Имя <test@example.com>"
-    );
+static GstStaticPadTemplate src_template = 
+    GST_STATIC_PAD_TEMPLATE("src",
+        GST_PAD_SRC,
+        GST_PAD_ALWAYS,
+        GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE("{ I420, NV12, RGBA }")));
+
+static GstFlowReturn
+gst_plugin_b_transform_ip(GstBaseTransform *trans, GstBuffer *buf) {
+  GstPluginB *self = GST_PLUGIN_B(trans);
+  GstCaps *caps = gst_pad_get_current_caps(GST_BASE_TRANSFORM_SINK_PAD(trans));
+  
+  
+  MyGstCustomMeta *custom_meta = (MyGstCustomMeta *)gst_buffer_get_meta(buf, GST_CUSTOM_META_API_TYPE);
+  
+  if (custom_meta) {
+    g_print("Meta found: frame=%d, %dx%d, format=%d\n", 
+          custom_meta->frame_number, custom_meta->width, custom_meta->height, custom_meta->format);
+  } 
+
+  gst_caps_unref(caps);
+  return GST_FLOW_OK;
 }
 
-static GstFlowReturn gst_plugin_b_chain(GstPad *pad, GstObject *parent, GstBuffer *buf) {
-    GstPluginB *plugin = GST_PLUGIN_B(parent);
-    
-    /* Извлечение метаданных */
-    MyCustomMeta *meta = buffer_get_custom_meta(buf);
-    
-    if (meta) {
-        /* Логирование метаданных */
-        GST_LOG("Получены метаданные: frame_id=%" G_GUINT64_FORMAT ", data=%s",
-               meta->frame_id,
-               meta->custom_data ? meta->custom_data : "NULL");
-    } else {
-        GST_WARNING("Метаданные не найдены в буфере!");
-    }
-    
-    /* Передача буфера дальше по pipeline */
-    return gst_pad_push(plugin->srcpad, buf);
+static void
+gst_plugin_b_class_init(GstPluginBClass *klass) {
+  GstElementClass *element_class = GST_ELEMENT_CLASS(klass);
+  GstBaseTransformClass *base_transform_class = GST_BASE_TRANSFORM_CLASS(klass);
+  
+  gst_element_class_set_static_metadata(element_class,
+      "Console video printer",
+      "Filter/Video",
+      "Prints video frame info to console",
+      "Your Name <your.email@example.com>");
+  
+  gst_element_class_add_static_pad_template(element_class, &sink_template);
+  gst_element_class_add_static_pad_template(element_class, &src_template);
+  
+  base_transform_class->transform_ip = gst_plugin_b_transform_ip;
 }
 
-static void gst_plugin_b_init(GstPluginB *plugin) {
-    /* Создание pad'ов */
-    plugin->sinkpad = gst_pad_new_from_template(
-        gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(plugin), "sink"),
-        "sink"
-    );
-    
-    plugin->srcpad = gst_pad_new_from_template(
-        gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(plugin), "src"),
-        "src"
-    );
-    
-    /* Установка chain функции */
-    gst_pad_set_chain_function(plugin->sinkpad, gst_plugin_b_chain);
-    
-    /* Добавление pad'ов к элементу */
-    gst_element_add_pad(GST_ELEMENT(plugin), plugin->sinkpad);
-    gst_element_add_pad(GST_ELEMENT(plugin), plugin->srcpad);
+static void
+gst_plugin_b_init(GstPluginB *self) {
+  self->frame_count = 0;
 }
 
-/* Регистрация плагина */
 static gboolean plugin_init(GstPlugin *plugin) {
-    return gst_element_register(
-        plugin,
-        "pluginb",
-        GST_RANK_NONE,
-        GST_TYPE_PLUGIN_B
-    );
+
+    GST_DEBUG_CATEGORY_INIT(gst_plugin_b_debug, "pluginb", 0, "Custom plugin");
+
+    if (!gst_element_register(plugin, "pluginb", GST_RANK_NONE, GST_TYPE_PLUGIN_B)) {
+        GST_ERROR("Failed to register element 'pluginb'");
+        return FALSE; // Убедитесь, что возвращаете FALSE при неудаче
+    }
+
+    return TRUE;
 }
 
-GST_PLUGIN_DEFINE(
+GST_PLUGIN_DEFINE (
     GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     pluginb,
-    "Пользовательский плагин B",
+    "Console video printer plugin",
     plugin_init,
-    VERSION,
+    PACKAGE,
     "LGPL",
-    "gst-meta-plugin-example",
-    "https://example.com"
-)
+    "GStreamer",
+    "http://gstreamer.net/"
+);
+
+G_END_DECLS
